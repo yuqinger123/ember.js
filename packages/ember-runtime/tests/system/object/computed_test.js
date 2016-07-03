@@ -4,6 +4,7 @@ import { get as emberGet } from 'ember-metal/property_get';
 import { observer } from 'ember-metal/mixin';
 import { testWithDefault } from 'ember-metal/tests/props_helper';
 import EmberObject from 'ember-runtime/system/object';
+import { defineProperty } from 'ember-metal/properties';
 
 function K() { return this; }
 
@@ -189,6 +190,38 @@ QUnit.test('can iterate over a list of computed properties for a class', functio
   deepEqual(list.sort(), ['bar', 'bat', 'baz', 'foo', 'qux'], 'all inherited properties are included');
 });
 
+QUnit.test('overriding a computed property with null/undefined removes it from eachComputedProperty iteration', function() {
+  let MyClass = EmberObject.extend({
+    foo: computed(function() {}),
+
+    fooDidChange: observer('foo', function() {}),
+
+    bar: computed(function() {}),
+
+    qux: alias('foo')
+  });
+
+  let SubClass = MyClass.extend({
+    foo: null
+  });
+
+  let list = [];
+
+  SubClass.eachComputedProperty(name => list.push(name));
+
+  deepEqual(list.sort(), ['bar', 'qux'], 'overridding with null removes from eachComputedProperty listing');
+
+  SubClass.reopen({
+    bar: undefined
+  });
+
+  list = [];
+
+  SubClass.eachComputedProperty(name => list.push(name));
+
+  deepEqual(list.sort(), ['qux'], 'overridding with `undefined` removes from eachComputedProperty listing');
+});
+
 QUnit.test('list of properties updates when an additional property is added (such cache busting)', function() {
   let MyClass = EmberObject.extend({
     foo: computed(K),
@@ -210,8 +243,6 @@ QUnit.test('list of properties updates when an additional property is added (suc
     baz: computed(K)
   });
 
-  MyClass.create(); // force apply mixins
-
   list = [];
 
   MyClass.eachComputedProperty(function(name) {
@@ -219,6 +250,16 @@ QUnit.test('list of properties updates when an additional property is added (suc
   });
 
   deepEqual(list.sort(), ['bar', 'foo', 'baz'].sort(), 'expected three computed properties');
+
+  defineProperty(MyClass.prototype, 'qux', computed(K));
+
+  list = [];
+
+  MyClass.eachComputedProperty(function(name) {
+    list.push(name);
+  });
+
+  deepEqual(list.sort(), ['bar', 'foo', 'baz', 'qux'].sort(), 'expected four computed properties');
 });
 
 QUnit.test('Calling _super in call outside the immediate function of a CP getter works', function() {

@@ -15,7 +15,6 @@ import assign from 'ember-metal/assign';
 
 // NOTE: this object should never be included directly. Instead use `Ember.Object`.
 // We only define this separately so that `Ember.Set` can depend on it.
-import { get } from 'ember-metal/property_get';
 import {
   guidFor
 } from 'ember-metal/utils';
@@ -36,7 +35,7 @@ import EmberError from 'ember-metal/error';
 import ActionHandler from 'ember-runtime/mixins/action_handler';
 import { defineProperty } from 'ember-metal/properties';
 import { Binding } from 'ember-metal/binding';
-import { ComputedProperty, computed } from 'ember-metal/computed';
+import { ComputedProperty } from 'ember-metal/computed';
 import InjectedProperty from 'ember-metal/injected_property';
 import run from 'ember-metal/run_loop';
 import { destroy } from 'ember-metal/watching';
@@ -48,7 +47,6 @@ var schedule = run.schedule;
 var applyMixin = Mixin._apply;
 var finishPartial = Mixin.finishPartial;
 var reopen = Mixin.prototype.reopen;
-var hasCachedComputedProperties = false;
 
 function makeCtor() {
   // Note: avoid accessing any properties on the object since it makes the
@@ -831,36 +829,18 @@ var ClassMixinProps = {
     @private
   */
   metaForProperty(key) {
-    var proto = this.proto();
-    var possibleDesc = proto[key];
-    var desc = (possibleDesc !== null && typeof possibleDesc === 'object' && possibleDesc.isDescriptor) ? possibleDesc : undefined;
+    this.proto(); // ensure prototype is initialized
+    let m = meta(this.prototype);
+    let desc = m.peekDescriptor(key);
 
     assert(
       'metaForProperty() could not find a computed property ' +
       'with key \'' + key + '\'.',
       !!desc && desc instanceof ComputedProperty
     );
+
     return desc._meta || {};
   },
-
-  _computedProperties: computed(function() {
-    hasCachedComputedProperties = true;
-    var proto = this.proto();
-    var property;
-    var properties = [];
-
-    for (var name in proto) {
-      property = proto[name];
-
-      if (property && property.isDescriptor) {
-        properties.push({
-          name: name,
-          meta: property._meta
-        });
-      }
-    }
-    return properties;
-  }).readOnly(),
 
   /**
     Iterate over each computed property for the class, passing its name
@@ -872,16 +852,17 @@ var ClassMixinProps = {
     @param {Object} binding
     @private
   */
-  eachComputedProperty(callback, binding) {
-    var property;
-    var empty = {};
+  eachComputedProperty(callback, _binding) {
+    this.proto(); // ensure prototype is initialized
+    let empty = {};
+    let binding = _binding || this;
 
-    var properties = get(this, '_computedProperties');
+    let m = meta(this.prototype);
+    m.forEachDescriptor(function(name, descriptor) {
+      let meta = descriptor._meta || empty;
 
-    for (var i = 0; i < properties.length; i++) {
-      property = properties[i];
-      callback.call(binding || this, property.name, property.meta || empty);
-    }
+      callback.call(binding, name, meta);
+    });
   }
 };
 
@@ -931,16 +912,7 @@ CoreObject.ClassMixin = ClassMixin;
 ClassMixin.apply(CoreObject);
 
 CoreObject.reopen({
-  didDefineProperty(proto, key, value) {
-    if (hasCachedComputedProperties === false) { return; }
-    if (value instanceof ComputedProperty) {
-      var cache = meta(this.constructor).readableCache();
-
-      if (cache && cache._computedProperties !== undefined) {
-        cache._computedProperties = undefined;
-      }
-    }
-  }
+  didDefineProperty() { }
 });
 
 export default CoreObject;
