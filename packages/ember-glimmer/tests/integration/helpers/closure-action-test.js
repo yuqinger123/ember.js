@@ -958,7 +958,7 @@ moduleFor('Helpers test: closure {{action}}', class extends RenderingTest {
     this.assert.equal(actualValue, newValue, 'property is read');
   }
 
-  ['@test action closure does not get auto-mut wrapped']() {
+  ['@test action closure does not get auto-mut wrapped'](assert) {
     let first = 'raging robert';
     let second = 'mild machty';
     let returnValue = 'butch brian';
@@ -974,7 +974,14 @@ moduleFor('Helpers test: closure {{action}}', class extends RenderingTest {
         innerComponent = this;
       },
       fireAction() {
-        actualReturnedValue = this.attrs.submit(second);
+        this.get('submit')(second);
+        this.get('attrs-submit')(second);
+        let attrsSubmitReturnValue = this.attrs['attrs-submit'](second);
+        let submitReturnValue = this.attrs.submit(second);
+
+        assert.equal(attrsSubmitReturnValue, submitReturnValue, 'both attrs.foo and foo should behave the same');
+
+        return submitReturnValue;
       }
     });
 
@@ -998,7 +1005,7 @@ moduleFor('Helpers test: closure {{action}}', class extends RenderingTest {
 
     this.registerComponent('middle-component', {
       ComponentClass: MiddleComponent,
-      template: `{{inner-component submit=attrs.submit}}`
+      template: `{{inner-component attrs-submit=attrs.submit submit=submit}}`
     });
 
     this.registerComponent('outer-component', {
