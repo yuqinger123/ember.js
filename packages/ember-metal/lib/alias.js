@@ -18,58 +18,59 @@ export default function alias(altKey) {
   return new AliasedProperty(altKey);
 }
 
-export function AliasedProperty(altKey) {
-  this.isDescriptor = true;
-  this.altKey = altKey;
-  this._dependentKeys = [altKey];
+export class AliasedProperty extends Descriptor {
+  constructor(altKey) {
+    super();
+    this.altKey = altKey;
+    this._dependentKeys = [altKey];
+  }
+
+  setup(obj, keyName, isWatching, meta) {
+    assert(`Setting alias '${keyName}' on self`, this.altKey !== keyName);
+
+    super.setup(obj, keyName, isWatching);
+
+    if (isWatching) {
+      addDependentKeys(this, obj, keyName, meta);
+    }
+  }
+
+  teardown(obj, keyName, isWatching, meta) {
+    if (isWatching) {
+      removeDependentKeys(this, obj, keyName, meta);
+    }
+  }
+
+  get(obj, keyName) {
+    return get(obj, this.altKey);
+  }
+
+  set(obj, keyName, value) {
+    return set(obj, this.altKey, value);
+  }
+
+  willWatch(obj, keyName) {
+    addDependentKeys(this, obj, keyName, meta(obj));
+  }
+
+  didUnwatch(obj, keyName) {
+    removeDependentKeys(this, obj, keyName, meta(obj));
+  }
+
+  readOnly() {
+    this.set = AliasedProperty_readOnlySet;
+    return this;
+  }
+
+  oneWay() {
+    this.set = AliasedProperty_oneWaySet;
+    return this;
+  }
 }
-
-AliasedProperty.prototype = Object.create(Descriptor.prototype);
-
-AliasedProperty.prototype.get = function AliasedProperty_get(obj, keyName) {
-  return get(obj, this.altKey);
-};
-
-AliasedProperty.prototype.set = function AliasedProperty_set(obj, keyName, value) {
-  return set(obj, this.altKey, value);
-};
-
-AliasedProperty.prototype.willWatch = function(obj, keyName) {
-  addDependentKeys(this, obj, keyName, meta(obj));
-};
-
-AliasedProperty.prototype.didUnwatch = function(obj, keyName) {
-  removeDependentKeys(this, obj, keyName, meta(obj));
-};
-
-AliasedProperty.prototype.setup = function(obj, keyName) {
-  assert(`Setting alias '${keyName}' on self`, this.altKey !== keyName);
-  let m = meta(obj);
-  if (m.peekWatching(keyName)) {
-    addDependentKeys(this, obj, keyName, m);
-  }
-};
-
-AliasedProperty.prototype.teardown = function(obj, keyName) {
-  let m = meta(obj);
-  if (m.peekWatching(keyName)) {
-    removeDependentKeys(this, obj, keyName, m);
-  }
-};
-
-AliasedProperty.prototype.readOnly = function() {
-  this.set = AliasedProperty_readOnlySet;
-  return this;
-};
 
 function AliasedProperty_readOnlySet(obj, keyName, value) {
   throw new EmberError(`Cannot set read-only property '${keyName}' on object: ${inspect(obj)}`);
 }
-
-AliasedProperty.prototype.oneWay = function() {
-  this.set = AliasedProperty_oneWaySet;
-  return this;
-};
 
 function AliasedProperty_oneWaySet(obj, keyName, value) {
   defineProperty(obj, keyName, null);
