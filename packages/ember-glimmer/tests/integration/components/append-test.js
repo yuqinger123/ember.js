@@ -1,7 +1,7 @@
 import { set } from 'ember-metal';
 import { jQuery } from 'ember-views';
 import { moduleFor, RenderingTest } from '../../utils/test-case';
-import { Component } from '../../utils/helpers';
+import { Component, compile } from '../../utils/helpers';
 
 class AbstractAppendTest extends RenderingTest {
 
@@ -260,30 +260,37 @@ moduleFor('appendTo: with multiple components', class extends AbstractAppendTest
   }
 
   ['@test can appendTo while rendering'](assert) {
-    assert.expect(0);
-
     let owner = this.owner;
+
+    let append = (component) => {
+      return this.append(component);
+    };
 
     this.registerComponent('first-component', {
       ComponentClass: Component.extend({
-        layoutName: 'components/component-one',
+        layout: compile('component-one'),
 
         didInsertElement() {
           let SecondComponent = owner._lookupFactory('component:second-component');
-          SecondComponent.create().appendTo('#qunit-fixture');
+
+          append(SecondComponent.create());
         }
       })
     });
 
     this.registerComponent('second-component', {
-      ComponentClass: Component.extend()
+      ComponentClass: Component.extend({
+        layout: compile(`component-two`)
+      })
     });
 
     let FirstComponent = this.owner._lookupFactory('component:first-component');
 
-    this.append(FirstComponent.create());
-  }
+    append(FirstComponent.create());
 
+    this.assertComponentElement(this.nthChild(0), { content: 'component-one' });
+    this.assertComponentElement(this.nthChild(1), { content: 'component-two' });
+  }
 });
 
 moduleFor('renderToElement: no arguments (defaults to a body context)', class extends AbstractAppendTest {

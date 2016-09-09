@@ -166,6 +166,7 @@ export class Renderer {
     this._destroyed = false;
     this._roots = [];
     this._lastRevision = null;
+    this._isRenderingRoots = false;
   }
 
   // renderer HOOKS
@@ -282,6 +283,10 @@ export class Renderer {
       register(this);
     }
 
+    // currently rendering roots, a new root was added and will
+    // be processed by the existing _renderRoots invocation
+    if (this._isRenderingRoots) { return; }
+
     this._renderRootsTransaction();
   }
 
@@ -293,8 +298,14 @@ export class Renderer {
     // each root is processed
     let initial = true;
 
+    // used to prevent calling _renderRoots again
+    // while we are actively rendering roots (for example
+    // if something calls `appendTo` during initial render)
+    this._isRenderingRoots = true;
+
     do {
       env.begin();
+
       globalShouldReflush = false;
 
       for (let i = 0; i < roots.length; i++) {
@@ -321,11 +332,24 @@ export class Renderer {
 
       initial = false;
     } while (globalShouldReflush);
+
+    this._isRenderingRoots = false;
   }
 
   _renderRootsTransaction() {
     try {
-      this._renderRoots();
+      let roots = this._roots;
+      let startingLength;
+
+      do {
+        // keep track of how many roots existed when we start
+        // rendering, in case we add more roots during render
+        startingLength = roots.length;
+
+        this._renderRoots();
+
+        // loop if any roots were added during _renderRoots
+      } while (roots.length !== startingLength);
     } catch (e) {
       this.destroy();
       throw e;
